@@ -48,6 +48,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	private static final String PURSUPAGRT = "conm_pursupagrt";
 	private static final String XPURCONTRACT = "conm_xpurcontract";
 	private static final String SOUCOMPARE_OFFLINE = "hl01_sou_compare_inh";
+	private static final String PAYBILL = "cas_paybill";
 	//还差定标结果，需要二开
 	
 	//审核不通过的状态
@@ -100,6 +101,9 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 				break;
 			case PAYAPPLY: //付款申请单
 				auditPayapply(formid,number,auditPass,result);
+				break;
+			case PAYBILL://付款单
+				auditPayBill(formid,number,auditPass,result);
 				break;
 			case MATERIALREQBILL://领货申请
 				auditMaterialreqbill(formid,number,auditPass,result);
@@ -207,6 +211,17 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	}
 	
 	/**
+	 * 付款单审核
+	 * @param number 单据编码
+	 * @param auditPass 审核是否通过
+	 * @param apiResult 反馈
+	 */
+	private void auditPayBill(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+		String unauditbillstatus = "J";
+		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
+	}
+	
+	/**
 	 * 领料申请单审核
 	 * @param number 单据编码
 	 * @param auditPass 审核是否通过
@@ -241,7 +256,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	
 	//
 	/**
-	 * 采购合同变更审核
+	 * 线下比价单审核
 	 * @param number 单据编码
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈

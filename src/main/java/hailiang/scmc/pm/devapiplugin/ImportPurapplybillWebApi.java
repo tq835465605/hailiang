@@ -1,8 +1,14 @@
 package hailiang.scmc.pm.devapiplugin;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.xml.bind.DatatypeConverter;
 
 import com.alibaba.druid.support.json.JSONUtils;
 import com.alibaba.fastjson.JSONArray;
@@ -12,8 +18,8 @@ import hailiang.constant.APIConstant;
 import hailiang.constant.CommonConstant;
 import hailiang.constant.PmpurapplyBillConstant;
 import hailiang.utils.HLCommonUtils;
-import json.util.Base64;
 import kd.bos.bill.IBillWebApiPlugin;
+import kd.bos.cache.TempFileCache;
 import kd.bos.cache.tempfile.RedisTempFileCache;
 import kd.bos.dataentity.OperateOption;
 import kd.bos.dataentity.entity.DynamicObject;
@@ -24,8 +30,10 @@ import kd.bos.logging.Log;
 import kd.bos.logging.LogFactory;
 import kd.bos.orm.query.QCP;
 import kd.bos.orm.query.QFilter;
+import kd.bos.servicehelper.AttachmentServiceHelper;
 import kd.bos.servicehelper.BusinessDataServiceHelper;
 import kd.bos.servicehelper.operation.OperationServiceHelper;
+import kd.bos.servicehelper.operation.SaveServiceHelper;
 import kd.bos.util.ExceptionUtils;
 
 /**
@@ -45,6 +53,8 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 	private static final String CURRENCY_DEFAULT = "CNY";
 	//默认单据状态
 	private static final String BILLSTATUS_DEFAULT = "A";
+	
+	private static final String appId = "/JJVO8XV9MVB";//采购管理的应用编码
 	/**
 	 * 以下为json的key值定义
 	 */
@@ -172,16 +182,18 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			//获取物料明细
 			JSONArray entryArray=jsonData.getJSONArray(data_entry);
 			DynamicObjectCollection billCollection = purapplybill.getDynamicObjectCollection(BILLENTRY);
+			BigDecimal total = new BigDecimal(0);
 			if(entryArray!=null) {
 				//循环处理关联的物料明细
 				for (int i = 0; i < entryArray.size(); i++) {
 					JSONObject jsonObj = entryArray.getJSONObject(i);
-					int seq = jsonObj.getIntValue(data_entry_seq);
+					//int seq = jsonObj.getIntValue(data_entry_seq);
 					String material = jsonObj.getString(data_entry_material);
 					String materialdesc = jsonObj.getString(data_entry_materialdesc);
 					BigDecimal applyqty = jsonObj.getBigDecimal(data_entry_applyqty);
 					BigDecimal budgetprice = jsonObj.getBigDecimal(data_entry_budgetprice);
 					BigDecimal budgetamount = jsonObj.getBigDecimal(data_entry_budgetamount);
+					total =total.add(budgetamount);
 					String hopedate = jsonObj.getString(data_entry_hopedate);
 					String entryremark = jsonObj.getString(data_entry_entryremark);
 					DynamicObject billentry = billCollection.addNew();
@@ -209,7 +221,7 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 					billentry.set("entrycomment", entryremark);
 				}
 			}
-			JSONArray attachmentArray=jsonData.getJSONArray(data_attachment);
+			purapplybill.set("hl01_amounttotal", total);
 			
 			OperateOption option  = OperateOption.create();
 			OperationResult purapplybillSubmitResult = OperationServiceHelper.executeOperate(CommonConstant.SAVE, PmpurapplyBillConstant.pm_purapplybill_ext, new DynamicObject[]{purapplybill}, option);
@@ -217,26 +229,45 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			if ((Boolean)purapplybillSubmitMap.get("result")) {
 				List<Object> purapplybillList =  purapplybillSubmitResult.getSuccessPkIds();
 				Long purapplybillID = (Long) purapplybillList.get(0);
-//				DynamicObject newPurapplybill = BusinessDataServiceHelper.loadSingle(purapplybillID,PmpurapplyBillConstant.pm_purapplybill_ext);
-//				OperationResult purapplybillAuditResult = OperationServiceHelper.executeOperate(CommonConstant.AUDIT, PmpurapplyBillConstant.pm_purapplybill_ext, new DynamicObject[]{newPurapplybill}, option);
-//				HLCommonUtils.executeOperateResult(purapplybillAuditResult,title);	
-				//
+				JSONArray attachmentArray=jsonData.getJSONArray(data_attachment);
+				Map<String, Object> attachmentInfo = new HashMap<String, Object>();
+				List<Map<String, Object>> attachmentlist = new ArrayList<Map<String, Object>>();
 				if(attachmentArray!=null) {
 					for (int i = 0; i < attachmentArray.size(); i++) {
 						JSONObject jsonObj = attachmentArray.getJSONObject(i);
 						//base64
 						String file = jsonObj.getString(data_attachment_file);
 						String filename = jsonObj.getString(data_attachment_filename);	
-						RedisTempFileCache fileCache = new RedisTempFileCache();
-						byte[] buffer  = Base64.decodeFast(file);
-						//byte[] buffer = new BASE64Decoder().decodeBuffer(file);
-						String tempUrl = fileCache.saveAsFullUrl(filename, buffer, 10*1000);
-						System.out.println(tempUrl);
-						//AttachmentServiceHelper.saveTempAttachments(formId, pkId, appId, attachmentInfo)()
-						//String url = AttachmentServiceHelper.upload(formId, pkId, attachKey, attachments);saveTempToFileService(tempUrl, "/JJVO8XV9MVB", PmpurapplyBillConstant.pm_purapplybill_ext, String.valueOf(purapplybillID), filename);
-						//System.out.println(url);
+						if (file.lastIndexOf(",") > 0) {
+							file = file.substring(file.lastIndexOf(",")+1);
+						}
+						TempFileCache fileCache = new RedisTempFileCache();
+						byte[] buffer = DatatypeConverter.parseBase64Binary(file);
+						ByteArrayInputStream stream  = new ByteArrayInputStream(buffer); 
+						//先保存缓存
+						String tempUrl = fileCache.saveAsUrl(filename, stream, 10*1000);
+						Map<String, Object> attachmentinfodetl  =new HashMap<String, Object>();
+						String uid = "pm-upload-";
+				        uid+=(new Date().getTime());
+				        uid+="-";
+						attachmentinfodetl.put("uid", uid+i);
+						attachmentinfodetl.put("lastModified", new Date().getTime());
+						attachmentinfodetl.put("name", filename);
+						attachmentinfodetl.put("size", String.valueOf(HLCommonUtils.base64FileSize(file)));
+						attachmentinfodetl.put("description", filename);
+						attachmentinfodetl.put("url", tempUrl);
+						attachmentinfodetl.put("entityNum", String.valueOf(i));
+						attachmentlist.add(attachmentinfodetl);
 					}
+					attachmentInfo.put("attachmentpanel", attachmentlist);
+					AttachmentServiceHelper.saveTempAttachments(PmpurapplyBillConstant.pm_purapplybill_ext, purapplybillID, appId, attachmentInfo);
 				}
+				DynamicObject newPurapplybill = BusinessDataServiceHelper.loadSingle(purapplybillID,PmpurapplyBillConstant.pm_purapplybill_ext);
+				newPurapplybill.set(BILLSTATUS, "C");
+				SaveServiceHelper.update(newPurapplybill);
+				//OperationResult purapplybillAuditResult = OperationServiceHelper.executeOperate(CommonConstant.AUDIT, PmpurapplyBillConstant.pm_purapplybill_ext, new DynamicObject[]{newPurapplybill}, option);
+				//HLCommonUtils.executeOperateResult(purapplybillAuditResult,title);	
+				
 			}
 			else {
 				result.setSuccess(false);	
@@ -255,6 +286,7 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 		return result;
 
 	}
+	
 	
 
 }

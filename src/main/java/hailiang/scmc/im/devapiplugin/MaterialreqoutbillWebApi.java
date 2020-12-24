@@ -1,8 +1,14 @@
 package hailiang.scmc.im.devapiplugin;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.xml.bind.DatatypeConverter;
 
 import com.alibaba.druid.support.json.JSONUtils;
 import com.alibaba.fastjson.JSONArray;
@@ -12,6 +18,8 @@ import hailiang.constant.APIConstant;
 import hailiang.constant.CommonConstant;
 import hailiang.utils.HLCommonUtils;
 import kd.bos.bill.IBillWebApiPlugin;
+import kd.bos.cache.TempFileCache;
+import kd.bos.cache.tempfile.RedisTempFileCache;
 import kd.bos.dataentity.OperateOption;
 import kd.bos.dataentity.entity.DynamicObject;
 import kd.bos.dataentity.entity.DynamicObjectCollection;
@@ -21,10 +29,17 @@ import kd.bos.logging.Log;
 import kd.bos.logging.LogFactory;
 import kd.bos.orm.query.QCP;
 import kd.bos.orm.query.QFilter;
+import kd.bos.servicehelper.AttachmentServiceHelper;
 import kd.bos.servicehelper.BusinessDataServiceHelper;
 import kd.bos.servicehelper.operation.OperationServiceHelper;
 import kd.bos.util.ExceptionUtils;
 
+
+/**
+ * 领料出库申请单，还差附件和测试
+ * @author TonyQ
+ *
+ */
 public class MaterialreqoutbillWebApi  implements IBillWebApiPlugin{
 
 	private static Log logger = LogFactory.getLog(MaterialreqbiWebApi.class);
@@ -41,6 +56,8 @@ public class MaterialreqoutbillWebApi  implements IBillWebApiPlugin{
 	
 	/**扩展的领料出库申请单*/
 	public static final String im_materialreqoutbill_ext = "im_materialreqoutbill";
+	
+	private static final String appId = "=9Q86DR2P+Q";
 	/**
 	 * 以下为json的key值定义
 	 */
@@ -210,25 +227,8 @@ public class MaterialreqoutbillWebApi  implements IBillWebApiPlugin{
 					billentry.set("outkeeper", adminorg);
 				}
 			}
+			JSONArray attachmentArray=jsonData.getJSONArray(data_attachment);
 			
-			/*JSONArray attachmentArray=jsonData.getJSONArray(data_attachment);
-			//
-			if(attachmentArray!=null) {
-				for (int i = 0; i < attachmentArray.size(); i++) {
-					JSONObject jsonObj = attachmentArray.getJSONObject(i);
-					//base64
-					String file = jsonObj.getString(data_attachment_file);
-					String filename = jsonObj.getString(data_attachment_filename);	
-					RedisTempFileCache fileCache = new RedisTempFileCache();
-					byte[] buffer  = Base64.decodeFast(file);
-					//byte[] buffer = new BASE64Decoder().decodeBuffer(file);
-					String tempUrl = fileCache.saveAsFullUrl(filename, buffer, 10*1000);
-					System.out.println(tempUrl);
-					//AttachmentServiceHelper.saveTempAttachments(formId, pkId, appId, attachmentInfo)()
-					//String url = AttachmentServiceHelper.upload(formId, pkId, attachKey, attachments);saveTempToFileService(tempUrl, "/JJVO8XV9MVB", PmpurapplyBillConstant.pm_purapplybill_ext, String.valueOf(purapplybillID), filename);
-					//System.out.println(url);
-				}
-			}*/
 			OperateOption option  = OperateOption.create();
 			OperationResult materialreqbillSaveResult = OperationServiceHelper.executeOperate(CommonConstant.SAVE, im_materialreqoutbill_ext, new DynamicObject[]{materialreqbill}, option);
 			Map<String, Object>  materialreqbillSaveMap = HLCommonUtils.executeOperateResult(materialreqbillSaveResult, processNumber);
@@ -240,6 +240,40 @@ public class MaterialreqoutbillWebApi  implements IBillWebApiPlugin{
 				Map<String, Object>  materialreqbillSubmitMap = HLCommonUtils.executeOperateResult(materialreqbillSubmitResult,processNumber);	
 				if((Boolean)materialreqbillSubmitMap.get("result"))
 				{
+					materialreqbillID = (Long) materialreqbillSubmitResult.getSuccessPkIds().get(0);
+					Map<String, Object> attachmentInfo = new HashMap<String, Object>();
+					List<Map<String, Object>> attachmentlist = new ArrayList<Map<String, Object>>();
+					if(attachmentArray!=null) {
+						for (int i = 0; i < attachmentArray.size(); i++) {
+							JSONObject jsonObj = attachmentArray.getJSONObject(i);
+							//base64
+							String file = jsonObj.getString(data_attachment_file);
+							String filename = jsonObj.getString(data_attachment_filename);	
+							if (file.lastIndexOf(",") > 0) {
+								file = file.substring(file.lastIndexOf(",")+1);
+							}
+							TempFileCache fileCache = new RedisTempFileCache();
+							byte[] buffer = DatatypeConverter.parseBase64Binary(file);
+							ByteArrayInputStream stream  = new ByteArrayInputStream(buffer); 
+							//先保存缓存
+							String tempUrl = fileCache.saveAsUrl(filename, stream, 10*1000);
+							Map<String, Object> attachmentinfodetl  =new HashMap<String, Object>();
+							String uid = "im-upload-";
+					        uid+=(new Date().getTime());
+					        uid+="-";
+							attachmentinfodetl.put("uid", uid+i);
+							attachmentinfodetl.put("lastModified", new Date().getTime());
+							attachmentinfodetl.put("name", filename);
+							attachmentinfodetl.put("size", String.valueOf(HLCommonUtils.base64FileSize(file)));
+							attachmentinfodetl.put("description", filename);
+							attachmentinfodetl.put("url", tempUrl);
+							attachmentinfodetl.put("entityNum", String.valueOf(i));
+							attachmentlist.add(attachmentinfodetl);
+						}
+						attachmentInfo.put("attachmentpanel", attachmentlist);
+						//附件上传
+						AttachmentServiceHelper.saveTempAttachments(im_materialreqoutbill_ext, materialreqbillID, appId, attachmentInfo);
+					}
 					List<Object> submaterialreqbillList =  materialreqbillSubmitResult.getSuccessPkIds();
 					Long submaterialreqbillID = (Long) submaterialreqbillList.get(0);
 					DynamicObject subMaterialreqbill = BusinessDataServiceHelper.loadSingle(submaterialreqbillID,im_materialreqoutbill_ext);
@@ -249,7 +283,9 @@ public class MaterialreqoutbillWebApi  implements IBillWebApiPlugin{
 						result.setSuccess(false);	
 						result.setMessage("领料申请单审核失败:"+materialreqbillAuditMap.get("msg"));
 						result.setErrorCode(APIConstant.ERRORCODE);
+						return result;
 					}
+					
 				}
 				else {
 					result.setSuccess(false);	

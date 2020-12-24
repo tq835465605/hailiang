@@ -35,6 +35,7 @@ public class CommonConstant {
 	
 	//操作代码：noapprive
 	public static final String NOAPPRIVE = "noapprive";
+	
 	//操作代码：反审核
 	public static final String UNAUDIT = "unaudit";
 	
