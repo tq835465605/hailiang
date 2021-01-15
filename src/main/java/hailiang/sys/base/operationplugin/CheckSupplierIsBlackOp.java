@@ -15,16 +15,15 @@ import kd.bos.entity.plugin.args.EndOperationTransactionArgs;
 import kd.bos.logging.Log;
 import kd.bos.logging.LogFactory;
 import kd.bos.servicehelper.BusinessDataServiceHelper;
-import kd.bos.servicehelper.user.UserServiceHelper;
 
 /**
  * 新增供应商检测，校验是否黑名单中的供应商/关联供应商，若是则不允许新增
  * @author TonyQ
  *
  */
-public class CheckSupplierIsBlackPlugin extends AbstractOperationServicePlugIn{
+public class CheckSupplierIsBlackOp extends AbstractOperationServicePlugIn{
 
-	private static Log logger = LogFactory.getLog(CheckSupplierIsBlackPlugin.class);
+	private static Log logger = LogFactory.getLog(CheckSupplierIsBlackOp.class);
 	private static final String ENTRYENTRY_E = "entryentity_e";
 	private static final String ENUMBER = "enumber";
 

@@ -66,11 +66,14 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 	private static final String data_dept = "dept" ;
 	private static final String data_biztime = "biztime" ;
 	private static final String data_acceptor = "acceptor" ;
+	private static final String data_biztype = "biztype" ;
+	private static final String data_executor = "executor";
 	private static final String data_costdept = "costdept" ;
 	private static final String data_company = "company" ;
 	private static final String data_storage = "storage";
 	private static final String data_zdsupplier = "zdsupplier" ;
 	private static final String data_comment = "comment" ;
+	private static final String data_requestorg = "requestorg" ;
 	private static final String data_entry = "entry" ;
 	private static final String data_entry_seq = "seq" ;
 	private static final String data_entry_material = "material" ;
@@ -105,12 +108,14 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 	private static final String COMMENT = "hl01_comment";
 	private static final String COSTDEPT = "hl01_costdept";
 	private static final String COMPANY = "hl01_company";
+	private static final String REQUESTORG = "hl01_requestorg";
 	
 	private static final String BILLENTRY = "billentry";
 	private static final String MATERIAL = "material";
 	private static final String MATERIALNAME = "materialname";
 	private static final String MATERIAL_DESC = "hl01_materialdesc";
 	private static final String MODEL = "model";
+
 
 	@Override
 	public ApiResult doCustomService(Map<String, Object> params) {
@@ -128,27 +133,51 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			//获取传入参数data数据
 			JSONObject jsonData = (JSONObject)rootObj.get(data);	
 			//获取采购申请单表头
-			String title = jsonData.getString(data_title);
-			String processNumber = jsonData.getString(data_processNumber);
-			String processId = jsonData.getString(data_processId);
-			String bizuser = jsonData.getString(data_bizuser);
-			String dept = jsonData.getString(data_dept);
-			String biztime = jsonData.getString(data_biztime);
-			String acceptor = jsonData.getString(data_acceptor);
-			String costdept = jsonData.getString(data_costdept);
-			String company = jsonData.getString(data_company);
-			String zdsupplier = jsonData.getString(data_zdsupplier);
-			String comment = jsonData.getString(data_comment);
-			String storage = jsonData.getString(data_storage);
+			String title = jsonData.getString(data_title);//标题
+			String processNumber = jsonData.getString(data_processNumber);//流程编号
+			String processId = jsonData.getString(data_processId);//流程id
+			String bizuser = jsonData.getString(data_bizuser);//申请人ID
+			String dept = jsonData.getString(data_dept);//申请人部门ID
+			String biztime = jsonData.getString(data_biztime);//申请日期‘YYYY-MM-dd’
+			String acceptor = jsonData.getString(data_acceptor);//验收人ID
+			String biztype = jsonData.getString(data_biztype);//采购类型
+			String executor = jsonData.getString(data_executor);//执行人
+		  
+			String costdept = jsonData.getString(data_costdept);	//费用承担部门
+			String company = jsonData.getString(data_company);//费用承担单位
+			String zdsupplier = jsonData.getString(data_zdsupplier);//是否为定向来源0否、1是
+			String comment = jsonData.getString(data_comment);//采购事由和要求
+			String storage = jsonData.getString(data_storage);//是否入库0否、1是
+			String requestorg = jsonData.getString(data_requestorg);
 			DynamicObject purapplybill = BusinessDataServiceHelper.newDynamicObject(PmpurapplyBillConstant.pm_purapplybill_ext);
 			//相当于where条件
-			QFilter orgfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, NUMBER_DEFAULT);
-			DynamicObject adminorg = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_ADMINORG, CommonConstant.ID, new QFilter[] {orgfilter});
+//			QFilter orgfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, NUMBER_DEFAULT);
+			QFilter orgfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, company);
+			DynamicObject adminorg = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_ORG, CommonConstant.ID, new QFilter[] {orgfilter});
 			purapplybill.set(ORG,adminorg);
+			//费用承担部门
+			QFilter costdeptfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, costdept);
+			DynamicObject adminorg_dept = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_ADMINORG, CommonConstant.ID, new QFilter[] {costdeptfilter});
+			purapplybill.set(COSTDEPT,adminorg_dept);
+			//单据类型
 			QFilter billtypefilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, BILLTYPE_DEFAULT);
 			DynamicObject adminBilltype = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_BILLTYPE, CommonConstant.ID, new QFilter[] {billtypefilter});
 			purapplybill.set(BILLTYPE,adminBilltype);
+			//采购类型
+			QFilter cgtypefilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, biztype);
+			DynamicObject adminCgtype = BusinessDataServiceHelper.loadSingle("bos_assistantdata_detail", CommonConstant.ID, new QFilter[] {cgtypefilter});
+			purapplybill.set("hl01_assistantcglx",adminCgtype);
+			//执行业务员
+			QFilter executorfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, executor);
+			DynamicObject adminExecutor = BusinessDataServiceHelper.loadSingle("pur_bizperson", CommonConstant.ID, new QFilter[] {executorfilter});
+			purapplybill.set("hl01_person",adminExecutor);
+			
 			purapplybill.set(BIZTIME, HLCommonUtils.parseDateTime(biztime, HLCommonUtils.DATEPATTERN));
+			
+			QFilter requestorgfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, requestorg);
+			DynamicObject adminrequestorg = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_ADMINORG, CommonConstant.ID, new QFilter[] {requestorgfilter});
+			purapplybill.set(REQUESTORG,adminrequestorg);
+			
 			QFilter currencyfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, CURRENCY_DEFAULT);
 			DynamicObject adminCurrency = BusinessDataServiceHelper.loadSingle(CommonConstant.BD_CURRENCY, CommonConstant.ID, new QFilter[] {currencyfilter});
 			purapplybill.set(CURRENCY, adminCurrency);
@@ -176,9 +205,6 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			purapplybill.set(ZDSUPPLIER, "0".equals(zdsupplier)?false:true);
 			purapplybill.set(STORAGE,  "0".equals(storage)?false:true);
 			purapplybill.set(COMMENT, comment);
-			//待完善
-			//purapplybill.set(COSTDEPT, ?);
-			//purapplybill.set(COMPANY, ?);
 			//获取物料明细
 			JSONArray entryArray=jsonData.getJSONArray(data_entry);
 			DynamicObjectCollection billCollection = purapplybill.getDynamicObjectCollection(BILLENTRY);
@@ -213,10 +239,11 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 					billentry.set("unit", baseunit);
 					billentry.set("applyqty", applyqty);
 					billentry.set("qty", applyqty);
-					billentry.set("price", budgetprice);
-					billentry.set("amount", budgetamount);
-					billentry.set("entryreqorg", adminorg);
-					billentry.set("entryrecorg", adminorg);
+					billentry.set("hl01_budgetprice", budgetprice);
+					billentry.set("hl01_amount", budgetamount);
+					billentry.set("entryreqorg", adminrequestorg);//需求组织
+					//billentry.set("entryreqdept", adminDept);
+					billentry.set("entryrecorg", adminorg);//收货组织
 					billentry.set("reqdate", HLCommonUtils.parseDateTime(hopedate, HLCommonUtils.DATEPATTERN));
 					billentry.set("entrycomment", entryremark);
 				}

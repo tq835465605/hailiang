@@ -37,22 +37,41 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	private static final String data_state = "state" ;
 
 
+	//标书编制
 	private static final String BIDDOCUMENT = "bid_biddocument_edit";
+	//定标
 	private static final String DECISION = "bid_decision";
+	//
 	private static final String SOUCOMPARE = "sou_compare";
+	//采购合同
 	private static final String CONMPURCONTRACT = "conm_purcontract";
-	private static final String PMPURORDERBILL = "pm_purorderbill";
+	//采购订单 改用商城订单
+	//private static final String PMPURORDERBILL = "pm_purorderbill";
+	//采购收货单
 	private static final String PURRECEIVEBILL = "im_purreceivebill";
+	//付款申请单
 	private static final String PAYAPPLY = "ap_payapply";
+	//领料申请单
 	private static final String MATERIALREQBILL = "im_materialreqbill";
+	//采购补充协议
 	private static final String PURSUPAGRT = "conm_pursupagrt";
+	//采购合同变更单
 	private static final String XPURCONTRACT = "conm_xpurcontract";
+	//线下比价单
 	private static final String SOUCOMPARE_OFFLINE = "hl01_sou_compare_inh";
+	//付款单
 	private static final String PAYBILL = "cas_paybill";
+	//商城订单
+	private static final String MAL_ORDER = "mal_order";
+
 	//还差定标结果，需要二开
 	
 	//审核不通过的状态
 	private static final String AUDITSTA_F = "F";
+	
+	private static final String AUDIT_PASS = "1";
+	private static final String AUDIT_NOPASS = "2";
+	private static final String AUDIT_TERMINATION = "3";
 
 	@Override
 	public ApiResult doCustomService(Map<String, Object> params) {
@@ -61,7 +80,6 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 		//设置接口返回结果为成功
 		result.setSuccess(true);
 		result.setMessage(APIConstant.MESSAGE_SUCCESS);
-
 		try {
 			//解析传入参数
 			String jsonStr = JSONUtils.toJSONString(params);
@@ -79,7 +97,8 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 				result.setErrorCode(APIConstant.ERRORCODE);
 				return result;
 			}
-			boolean auditPass = "1".equals(state)?true:false;
+			//boolean auditPass = "1".equals(state)?true:false;
+			String auditPass = state;
 			switch (formid) {
 			case BIDDOCUMENT://标书
 				auditBidDocument(formid,number,auditPass,result);
@@ -93,9 +112,11 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 			case CONMPURCONTRACT://采购合同
 				auditPurcontract(formid,number,auditPass,result);
 				break;
-			case PMPURORDERBILL://采购订单
-				auditPurorderbill(formid,number,auditPass,result);
-				break;
+			case MAL_ORDER://商城采购
+				auditMalorder(formid,number,auditPass,result);
+//			case PMPURORDERBILL://采购订单
+//				auditPurorderbill(formid,number,auditPass,result);
+//				break;
 			case PURRECEIVEBILL://采购收货单
 				auditPurreceivebill(formid,number,auditPass,result);
 				break;
@@ -138,7 +159,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditBidDocument(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditBidDocument(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
@@ -149,7 +170,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditDecision(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditDecision(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
@@ -160,7 +181,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditSouCompare(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditSouCompare(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -171,18 +192,29 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPurcontract(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPurcontract(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
 
 	/**
-	 * 采购申请单审核
+	 * 采购订单单审核
 	 * @param number 单据编码
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPurorderbill(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPurorderbill(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
+		String unauditbillstatus = AUDITSTA_F;
+		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
+	}
+	
+	/**
+	 * 商城订单审核
+	 * @param number 单据编码
+	 * @param auditPass 审核是否通过
+	 * @param apiResult 反馈
+	 */
+	private void auditMalorder(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -193,7 +225,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPurreceivebill(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPurreceivebill(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus =AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -205,7 +237,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPayapply(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPayapply(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -216,7 +248,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPayBill(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPayBill(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = "J";
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -227,7 +259,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditMaterialreqbill(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditMaterialreqbill(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -238,7 +270,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditPursupagrt(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditPursupagrt(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -249,7 +281,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditXpurcontract(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditXpurcontract(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -261,7 +293,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param auditPass 审核是否通过
 	 * @param apiResult 反馈
 	 */
-	private void auditOfflineSouCompare(String formid,String number,boolean auditPass,ApiResult apiResult) throws Exception{
+	private void auditOfflineSouCompare(String formid,String number,String auditPass,ApiResult apiResult) throws Exception{
 		String unauditbillstatus = AUDITSTA_F;
 		auditCommonBillByBillno(formid,number,auditPass,unauditbillstatus,apiResult);
 	}
@@ -273,9 +305,10 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 	 * @param newbillstatus 不通过的单据状态
 	 * @param apiResult 反馈结果
 	 */
-	public void auditCommonBillByBillno(String formid,String number,boolean auditPass,String newbillstatus,ApiResult apiResult) throws Exception{
+	public void auditCommonBillByBillno(String formid,String number,String auditPass,String newbillstatus,ApiResult apiResult) throws Exception{
 		//查找number在表单中是否存在
 		QFilter filter = new QFilter("billno", QCP.equals, number);
+		
 		DynamicObject commonObject = BusinessDataServiceHelper.loadSingle(formid,CommonConstant.ID,filter.toArray());
 		if(commonObject==null)
 		{
@@ -283,7 +316,7 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 		}
 		commonObject = BusinessDataServiceHelper.loadSingle(commonObject.getPkValue(), formid);
 		if(commonObject!=null) {
-			if(auditPass) {
+			if(AUDIT_PASS.equals(auditPass)) {
 				//执行审核
 				OperationResult commonObjectAuditResult = OperationServiceHelper.executeOperate(CommonConstant.AUDIT, formid, new DynamicObject[]{commonObject},OperateOption.create());
 				Map<String, Object>  commonAuditMap = HLCommonUtils.executeOperateResult(commonObjectAuditResult,formid);
@@ -292,23 +325,19 @@ public class AuditStatusWebApi implements IBillWebApiPlugin{
 					apiResult.setMessage(commonAuditMap.get("msg")+":审核失败");
 					apiResult.setErrorCode(APIConstant.ERRORCODE);
 				}
-			}else {
-//				String billstatus = commonObject.getString("billstatus");
-//				if("C".equalsIgnoreCase(billstatus)) {
-//					//已审核的执行反审核
-//					OperationResult commonObjectUnAuditResult = OperationServiceHelper.executeOperate(CommonConstant.UNAUDIT, formid, new DynamicObject[]{commonObject},OperateOption.create());
-//					Map<String, Object>  commonUnAuditMap = HLCommonUtils.executeOperateResult(commonObjectUnAuditResult,formid);
-//					if (!(Boolean)commonUnAuditMap.get("result")) {
-//						apiResult.setSuccess(false);
-//						apiResult.setMessage(commonUnAuditMap.get("msg")+":反审核失败");
-//						apiResult.setErrorCode(APIConstant.ERRORCODE);
-//					}
-//				}
-				//commonObject.set("billstatus", "F");
+			}else if(AUDIT_NOPASS.equals(auditPass)){
 				OperationResult result = OperationServiceHelper.executeOperate(CommonConstant.NOAPPRIVE, formid, new DynamicObject[]{commonObject}, OperateOption.create());
 				if (!result.isSuccess()) {
 					apiResult.setSuccess(false);
 					apiResult.setMessage("审核不通过单据失败:"+result.getMessage());
+					apiResult.setErrorCode(APIConstant.ERRORCODE);
+				}
+			}
+			else if(AUDIT_TERMINATION.equals(auditPass)){//终止
+				OperationResult result = OperationServiceHelper.executeOperate(CommonConstant.TERMINATION, formid, new DynamicObject[]{commonObject}, OperateOption.create());
+				if (!result.isSuccess()) {
+					apiResult.setSuccess(false);
+					apiResult.setMessage("单据终止失败:"+result.getMessage());
 					apiResult.setErrorCode(APIConstant.ERRORCODE);
 				}
 			}

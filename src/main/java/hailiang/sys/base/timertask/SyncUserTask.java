@@ -44,6 +44,7 @@ public class SyncUserTask extends AbstractTask {
 	private static final String[] ENABLESTATE = {"1","2","3"};//可用人员状态
 	private static final String BOS_USER = "bos_user";//用户表单标识
 	private static final String USER_SYNC_DATE = "USER_SYNC_DATE";//参数设置-人员最好更新时间
+	private static final String HL01_JOBTITLE = "hl01_jobtitle";//岗位基础资料
 
 	@Override
 	public void execute(RequestContext ctx, Map<String, Object> param) throws KDException {
@@ -95,12 +96,18 @@ public class SyncUserTask extends AbstractTask {
 						String email = userBean.element("email").getText();
 						String departmentid = userBean.element("departmentid").getText();
 						departmentid = CommonConstant.DEP+departmentid;
-						String jobtitle = userBean.element("jobtitle").getText();
+						String jobtitleid = userBean.element("jobtitle").getText();
 						String sex = userBean.element("sex").getText();					
 
 						//构建用户API参数
 						List<UserParam> paramList = new ArrayList<>();
 						UserParam user = new UserParam();
+						//查询用户是否存在
+						filter = new QFilter("number", QCP.equals, workcode);
+						DynamicObject findUser = QueryServiceHelper.queryOne(BOS_USER,"id,isforbidden", filter.toArray());		
+						if (findUser != null) {
+							user.setId(findUser.getLong("id"));
+						}
 						// user.setCustomId(123456780L);
 						Map<String, Object> dataMap = new HashMap<>();
 						dataMap.put("number", workcode);
@@ -121,7 +128,13 @@ public class SyncUserTask extends AbstractTask {
 						dptNumMap.put("number", departmentid);
 						entryentity.put("dpt", dptNumMap);
 
-						entryentity.put("position", jobtitle);
+						//查询岗位
+						filter = new QFilter("number", QCP.equals, jobtitleid);
+						DynamicObject jobtitleQueryObj = QueryServiceHelper.queryOne(HL01_JOBTITLE,"id,hl01_fullname", filter.toArray());				
+						if (jobtitleQueryObj != null) {
+							//加载OA岗位表数据
+							entryentity.put("position", jobtitleQueryObj.getString("hl01_fullname"));
+						}
 						entryentity.put("isincharge", false);
 						entryentity.put("ispartjob", false);
 						entryentity.put("seq", 1);
@@ -146,7 +159,7 @@ public class SyncUserTask extends AbstractTask {
 
 						//人员启用和禁用
 						filter = new QFilter("number", QCP.equals, workcode);
-						DynamicObject findUser = QueryServiceHelper.queryOne(BOS_USER,"id,isforbidden", filter.toArray());
+						//DynamicObject findUser = QueryServiceHelper.queryOne(BOS_USER,"id,isforbidden", filter.toArray());
 						if(findUser != null) {
 							Boolean isforbidden = findUser.getBoolean("isforbidden");
 							Long userId = findUser.getLong("id");

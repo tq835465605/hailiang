@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.alibaba.druid.support.json.JSONUtils;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 
 import hailiang.constant.APIConstant;
@@ -22,7 +23,6 @@ import kd.bos.logging.LogFactory;
 import kd.bos.orm.query.QCP;
 import kd.bos.orm.query.QFilter;
 import kd.bos.servicehelper.QueryServiceHelper;
-import kd.bos.util.ExceptionUtils;
 
 
 /**
@@ -35,8 +35,8 @@ public class InvaccQueryWebApi implements IBillWebApiPlugin{
 	private static Log logger = LogFactory.getLog(InvaccQueryWebApi.class);
 
 	private static final String data = "data" ;
-	private static final String data_material = "material" ;
-
+	private static final String data_materials = "materials" ;
+	private static final String data_materials_id = "id" ;
 	private static final String im_invacc = "im_invacc";
 
 	@Override
@@ -55,74 +55,76 @@ public class InvaccQueryWebApi implements IBillWebApiPlugin{
 			JSONObject rootObj = JSONObject.parseObject(jsonStr);
 			//获取传入参数data数据
 			JSONObject jsonData = (JSONObject)rootObj.get(data);	
-			String material = jsonData.getString(data_material);
-			if(HLCommonUtils.strsEmpty(material)) {
-				result.setSuccess(false);
-				result.setMessage("物料id不能有空值");
-				result.setErrorCode(APIConstant.ERRORCODE);
-				return result;
-
-			}
-			//先过滤是否存在这个物料
-			QFilter qFilter = new QFilter("material.number", QCP.equals, material);
-			boolean isExists= QueryServiceHelper.exists(im_invacc, qFilter.toArray());
-			if(!isExists) {
-				result.setSuccess(false);
-				result.setMessage("查询不到对应的物料信息");
-				result.setErrorCode(APIConstant.ERRORCODE);
-				return result;
-			}
-			//过滤不可用的物料
-			qFilter.and(new QFilter("invstatus.number", QCP.equals, "110"));
-			//查询key
-			String algokey = this.getClass().getName()+".queryInvacc";
-			DataSet invAccDataSet = QueryServiceHelper.queryDataSet(algokey, im_invacc,
-					String.join(",", this.buildSelectorAcc()), qFilter.toArray(),"material.number, warehouse.number");
-			//invAccDataSet = invAccDataSet.filter("qty <> 0");
-			Throwable IteratorThrowable = null;
-			BigDecimal qty= null;
-
-			try {
-				Iterator<Row> rows = invAccDataSet.iterator();
-				while(rows.hasNext()) {
-					Row row = (Row)rows.next();
-					qty = row.getBigDecimal("qty");
-				}
-			} catch (Throwable var) {
-				IteratorThrowable = var;
-				throw var;
-			} finally {
-				if (invAccDataSet != null) {
-					if (IteratorThrowable != null) {
-						try {
-							invAccDataSet.close();
-						} catch (Throwable var) {
-							IteratorThrowable.addSuppressed(var);
-						}
-					} else {
-						invAccDataSet.close();
+			JSONArray materials = jsonData.getJSONArray(data_materials);
+			JSONObject resultdata = new JSONObject();
+			
+			if(materials!=null) {
+				JSONArray array = new JSONArray();
+				for (int i = 0; i < materials.size(); i++) {			
+					JSONObject jsonObj = materials.getJSONObject(i);
+					String material = jsonObj.getString(data_materials_id);
+					if(HLCommonUtils.strsEmpty(material)) {
+						continue;
 					}
-				}
+					//先过滤是否存在这个物料
+					JSONObject data = new JSONObject();
+					data.put("id", material);
+					QFilter qFilter = new QFilter("material.number", QCP.equals, material);
+					boolean isExists= QueryServiceHelper.exists(im_invacc, qFilter.toArray());
+					if(!isExists) {	
+						data.put("msg", "没有对应的物料");
+						continue;
+					}
+					//过滤不可用的物料
+					qFilter.and(new QFilter("invstatus.number", QCP.equals, "110"));
+					//查询key
+					String algokey = this.getClass().getName()+".queryInvacc";
+					DataSet invAccDataSet = QueryServiceHelper.queryDataSet(algokey, im_invacc,
+							String.join(",", this.buildSelectorAcc()), qFilter.toArray(),"material.number, warehouse.number");
+					Throwable IteratorThrowable = null;
+					BigDecimal qty= null;
+					try {
+						Iterator<Row> rows = invAccDataSet.iterator();
+						while(rows.hasNext()) {
+							Row row = (Row)rows.next();
+							qty = row.getBigDecimal("qty");
+						}
+					} catch (Throwable var) {
+						IteratorThrowable = var;
+						throw var;
+					} finally {
+						if (invAccDataSet != null) {
+							if (IteratorThrowable != null) {
+								try {
+									invAccDataSet.close();
+								} catch (Throwable var) {
+									IteratorThrowable.addSuppressed(var);
+								}
+							} else {
+								invAccDataSet.close();
+							}
+						}
 
-			}
-			if(qty!=null) {
-				JSONObject jObject = new JSONObject();
-				jObject.put("qty", qty);
-				result.setData(jObject);
-			}
-			else {
-				result.setSuccess(false);
-				result.setMessage("出现异常");
-				result.setErrorCode(APIConstant.ERRORCODE);
-			}
+					}
+					if(qty!=null) {
+						data.put("qty", qty);	
+					}
+					else {
+						data.put("msg", "查询异常");	
+					}
+					array.add(data);
+				}
+				resultdata.put("materials", array);
+			}	
+			result.setData(resultdata);
 		}
-		catch (Exception e) {
+		catch (Throwable e) {
 			//异常情况设置接口返回失败
 			result.setSuccess(false);
 			result.setMessage(e.getMessage());
 			result.setErrorCode(APIConstant.ERRORCODE);
 			//记录错误日志信息
-			logger.error("异常："+ExceptionUtils.getExceptionStackTraceMessage(e));
+			logger.error("查询即时库存异常",e);
 		}	
 		return result;
 	}
@@ -137,6 +139,8 @@ public class InvaccQueryWebApi implements IBillWebApiPlugin{
 		selectorList.add("warehouse.number");
 		return selectorList;
 	}
+	
+	
 
 
 }

@@ -33,8 +33,11 @@ public class CommonConstant {
 	//操作代码：审核
 	public static final String AUDIT = "audit";
 	
-	//操作代码：noapprive
+	//操作代码：不通过
 	public static final String NOAPPRIVE = "noapprive";
+	
+	//操作代码：整单终止
+	public static final String TERMINATION = "termination";
 	
 	//操作代码：反审核
 	public static final String UNAUDIT = "unaudit";
