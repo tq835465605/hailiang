@@ -6,6 +6,7 @@ import java.util.Map;
 import com.alibaba.fastjson.JSONObject;
 
 import hailiang.constant.CommonConstant;
+import hailiang.utils.HLCommonUtils;
 import kd.bos.dataentity.entity.DynamicObject;
 import kd.bos.entity.plugin.AbstractOperationServicePlugIn;
 import kd.bos.entity.plugin.args.AfterOperationArgs;
@@ -27,15 +28,15 @@ public class ProjectSubmitToOAOp extends AbstractOperationServicePlugIn{
 
 	private static Log logger = LogFactory.getLog(ProjectSubmitToOAOp.class);
 	private static final String BID_PROJECT = "bid_project";
-	private static final String workflowId = "";//流程编码，相当于单据标识
+	private static final String workflowId = "405942";//流程编码，相当于单据标识
 
 	private static final String KEY_TITLE = "hl01_title";
 	private static final String KEY_BILLNO = "billno";
-	private static final String KEY_PURTYPE = "purtype";
+	private static final String KEY_PURTYPE = "hl01_assistantcglx";//"purtype";
 	private static final String KEY_PROCESSID = "hl01_pmprocessid";
 	private static final String KEY_NAME = "name";
 	private static final String KEY_REQUESTER = "hl01_requester";
-	private static final String KEY_AMOUNT = "hl01_amount";
+	private static final String KEY_AMOUNT = "hl01_budgetamount";
 	private static final String KEY_REQUESTCOMPANY = "hl01_requestcompany";
 	private static final String KEY_REQUESTDEPT = "hl01_requestdept";
 	private static final String KEY_REQUESTUSER = "hl01_requestuser";
@@ -44,7 +45,7 @@ public class ProjectSubmitToOAOp extends AbstractOperationServicePlugIn{
 	private static final boolean createNew =  true;
 	private static final boolean backToCreate = false;
 
-	private static final String URL = "http://zz.ehailiang.com:8080/oa/workFlowManager/createWorkFlow";
+	private static final String URL = "http://zz.ehailiang.com:8080/oa/workFlowManager/requestWorkFlow";
 
 
 	@Override
@@ -74,16 +75,34 @@ public class ProjectSubmitToOAOp extends AbstractOperationServicePlugIn{
 				//采购类型
 				DynamicObject purtype = bidproject.getDynamicObject(KEY_PURTYPE);
 				String CGLX = purtype.getString(CommonConstant.NUMBER);
+				//采购需求公司
 				DynamicObject requestcompany =  bidproject.getDynamicObject(KEY_REQUESTCOMPANY);
 				String CGXQFB = requestcompany.getString(CommonConstant.NUMBER);
+				//采购需求部门
 				DynamicObject requestdept = bidproject.getDynamicObject(KEY_REQUESTDEPT);
 				String CGXQBM = requestdept.getString(CommonConstant.NUMBER);
+				//采购人
 				DynamicObject requestuser = bidproject.getDynamicObject(KEY_REQUESTUSER);
 				String CGXQDJR = requestuser.getString(CommonConstant.NUMBER);
 
+				//创建人
+				String creator = bidproject.getDynamicObject("creator").getString("number");
+				//修改人
+				String modifier = bidproject.getDynamicObject("modifier").getString("number");
+				//申请部门
+				String SQBM = bidproject.getDynamicObject("hl01_dept").getString("number");
+				//申请日期
+				String SQRQ	 = HLCommonUtils.formatDateTime(bidproject.getDate("setupdate"),HLCommonUtils.DATEPATTERN);
+				//技术标负责人
+				String CGJSFZR = bidproject.getDynamicObject("hl01_technologyman").getString("number");
+				//商务标负责人
+				String CGSBFZR = bidproject.getDynamicObject("hl01_technologyman").getString("number");
+				
 				Map<String, Object> body = new HashMap<String, Object>();
 				body.put("workflowId", workflowId);
 				body.put("title", title);
+				body.put("workCode", creator);	
+				body.put("updateID", modifier);	
 				body.put("bussbussinessId", bussbussinessId);
 				body.put("bussbussinessField", bussbussinessField);
 				body.put("createNew", createNew);
@@ -93,19 +112,27 @@ public class ProjectSubmitToOAOp extends AbstractOperationServicePlugIn{
 				fieldjson.put("ZBXM", ZBXM);
 				fieldjson.put("ZBBH", ZBBH);
 				fieldjson.put("SQR", SQR);
+				fieldjson.put("SQBM", SQBM);
+				fieldjson.put("SQRQ", SQRQ);
 				fieldjson.put("YSJE", YSJE);
 				fieldjson.put("CGLX", CGLX);
 				fieldjson.put("CGXQFB", CGXQFB);
 				fieldjson.put("CGXQBM", CGXQBM);
 				fieldjson.put("CGXQDJR", CGXQDJR);
+				fieldjson.put("CGJSFZR", CGJSFZR);
+				fieldjson.put("CGSBFZR", CGSBFZR);
+				fieldjson.put("CQDH", BID_PROJECT);
 				body.put("fieldValues", fieldjson);
 				//body.put("fieldValues", workflowId);
+				System.out.println(body);
 				String result = HttpClientUtils.post(URL, null, body);
+				
 				JSONObject result_json = JSONObject.parseObject(result);
 				if(result_json==null || !result_json.getBooleanValue("operateResult")) {
 					e.setCancel(true);
 					e.setCancelMessage("标书审核流程创建失败:"+result_json.getString("operateMsg"));
 				}
+				//是否回写流程ID到苍穹的招标立项中
 
 			}catch (Exception e1) {
 				// TODO Auto-generated catch block

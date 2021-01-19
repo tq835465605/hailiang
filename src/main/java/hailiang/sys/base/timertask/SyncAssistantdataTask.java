@@ -105,7 +105,7 @@ public class SyncAssistantdataTask  extends AbstractTask{
 				String fzjd_wfid = fzjd_json.getString("wfid");
 		        assistantdatagroup = newAssistantdataGroup(fzjd,fzjd_name);
 		        assistantdatagroup = BusinessDataServiceHelper.loadSingle(assistantdatagroup.getLong(CommonConstant.ID),ASSISTANTDATAGROUP);
-				sql = "select SELECTVALUE,SELECTNAME from "+st_cqxzk + " where WFID in ("+fzjd_wfid+")";
+				sql = "select SELECTVALUE,SELECTNAME from "+st_cqxzk + " where FIELDNAME = '"+fzjd+"' and WFID in ("+fzjd_wfid+")";
 				ResultSet fzjdResultSet=JDBCUtils.select(connection,sql,null);
 				while(fzjdResultSet.next()) {
 					String id = fzjdResultSet.getString("SELECTVALUE");
@@ -132,7 +132,7 @@ public class SyncAssistantdataTask  extends AbstractTask{
 	 * @param formid
 	 * @return
 	 */
-	private DynamicObject isExsitAssistantGroupOrDetail(String number,String name,String formid) {
+	private DynamicObject isExsitAssistantGroup(String number,String name,String formid) {
 		QFilter assistantfilter = new QFilter("number", QCP.equals, number);
 		assistantfilter.and(new QFilter("name", QCP.equals, name));
 		DynamicObject bizcloud=QueryServiceHelper.queryOne(formid, CommonConstant.ID, assistantfilter.toArray());
@@ -144,12 +144,30 @@ public class SyncAssistantdataTask  extends AbstractTask{
 	}
 	
 	/**
+	 * 查询在辅助资料里有没有明细
+	 * @param number
+	 * @param formid
+	 * @return
+	 */
+	private DynamicObject isExsitAssistantDetail(String number,DynamicObject assistantdatagroup,String formid) {
+		QFilter assistantfilter = new QFilter("number", QCP.equals, number);
+		assistantfilter.and(new QFilter("group.name", QCP.equals, assistantdatagroup.getString(CommonConstant.NAME)));
+		DynamicObject bizcloud=QueryServiceHelper.queryOne(formid, CommonConstant.ID, assistantfilter.toArray());
+		if(bizcloud!=null) {
+			return bizcloud;
+		}else {
+			return null;
+		}
+	}
+	
+	
+	/**
 	 * 建立辅助资料分组
 	 * @return
 	 */
 	private DynamicObject newAssistantdataGroup(String number,String name)
 	{
-		DynamicObject assistantdatagroup=isExsitAssistantGroupOrDetail(number,name,ASSISTANTDATAGROUP);
+		DynamicObject assistantdatagroup=isExsitAssistantGroup(number,name,ASSISTANTDATAGROUP);
 		if(assistantdatagroup==null) {
 			assistantdatagroup = BusinessDataServiceHelper.newDynamicObject(ASSISTANTDATAGROUP);
 			QFilter filter = new QFilter("number", QCP.equals, PUR);
@@ -170,7 +188,7 @@ public class SyncAssistantdataTask  extends AbstractTask{
 	
 	private void newOrUpdateAssistantdataDetail(String number,String name,DynamicObject assistantdatagroup)
 	{
-		DynamicObject assistantdatagdetail=isExsitAssistantGroupOrDetail(number,name,ASSISTANTDATADETAIL);
+		DynamicObject assistantdatagdetail=isExsitAssistantDetail(number,assistantdatagroup,ASSISTANTDATADETAIL);
 		if(assistantdatagdetail ==null) {		
 			assistantdatagdetail = BusinessDataServiceHelper.newDynamicObject(ASSISTANTDATADETAIL);	
 			assistantdatagdetail.set("number", number);
@@ -188,23 +206,54 @@ public class SyncAssistantdataTask  extends AbstractTask{
 			assistantdatagdetail.set("level",1);
 			OperationResult saveResult = OperationServiceHelper.executeOperate(CommonConstant.SAVE, ASSISTANTDATADETAIL, new DynamicObject[]{assistantdatagdetail}, OperateOption.create());
 			boolean issuccess = saveResult.isSuccess();
-			Map<String, Object>  purapplybillSubmitMap = HLCommonUtils.executeOperateResult(saveResult, "");
+			Map<String, Object>  saveMap = HLCommonUtils.executeOperateResult(saveResult, "");
 			System.out.println(issuccess);	
 			if(!issuccess) {
-				System.out.println(purapplybillSubmitMap.get("msg"));	
-				logger.error("请求辅助异常："+purapplybillSubmitMap.get("msg"));
+				System.out.println(saveMap.get("msg"));	
+				logger.error("请求辅助异常："+saveMap.get("msg"));
 			}
 				
 		}
 		else {
 			assistantdatagdetail = BusinessDataServiceHelper.loadSingle(assistantdatagdetail.getLong(CommonConstant.ID),ASSISTANTDATADETAIL);
+			OperationResult deleteResult = OperationServiceHelper.executeOperate("delete", ASSISTANTDATADETAIL, new DynamicObject[]{assistantdatagdetail}, OperateOption.create());
+			boolean issuccess = deleteResult.isSuccess();
+			Map<String, Object>  deleteMap = HLCommonUtils.executeOperateResult(deleteResult, "");
+			System.out.println(issuccess);	
+			if(!issuccess) {
+				System.out.println(deleteMap.get("msg"));	
+				logger.error("请求辅助异常："+deleteMap.get("msg"));
+				return;
+			}
+			assistantdatagdetail = BusinessDataServiceHelper.newDynamicObject(ASSISTANTDATADETAIL);	
 			assistantdatagdetail.set("number", number);
 			assistantdatagdetail.set("name", name);
 			assistantdatagdetail.set("group", assistantdatagroup);
+			QFilter orgfilter = new QFilter("number", QCP.equals, "sub222");
+			DynamicObject adminorg = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_ORG, CommonConstant.ID, new QFilter[] {orgfilter});
+			assistantdatagdetail.set("createorg", adminorg);
+			QFilter viewfilter = new QFilter("number", QCP.equals, "16");
+			DynamicObject viewschema = BusinessDataServiceHelper.loadSingle(VIEWSCHEMA, CommonConstant.ID, new QFilter[] {viewfilter});
+			assistantdatagdetail.set("ctrlview", viewschema);	
+			assistantdatagdetail.set("createtime", new Date());
 			assistantdatagdetail.set("enable","1");
 			assistantdatagdetail.set("status","C");
-			assistantdatagdetail.set("level",1);		
-			SaveServiceHelper.update(new DynamicObject[] {assistantdatagdetail});		
+			assistantdatagdetail.set("level",1);
+			OperationResult saveResult = OperationServiceHelper.executeOperate(CommonConstant.SAVE, ASSISTANTDATADETAIL, new DynamicObject[]{assistantdatagdetail}, OperateOption.create());
+			issuccess = saveResult.isSuccess();
+			Map<String, Object>  saveMap = HLCommonUtils.executeOperateResult(saveResult, "");
+			System.out.println(issuccess);	
+			if(!issuccess) {
+				System.out.println(saveMap.get("msg"));	
+				logger.error("请求辅助异常："+saveMap.get("msg"));
+			}
+//			assistantdatagdetail.set("number", number);
+//			assistantdatagdetail.set("name", name);
+//			assistantdatagdetail.set("group", assistantdatagroup);
+//			assistantdatagdetail.set("enable","1");
+//			assistantdatagdetail.set("status","C");
+//			assistantdatagdetail.set("level",1);		
+//			SaveServiceHelper.update(new DynamicObject[] {assistantdatagdetail});		
 		}
 	}
 

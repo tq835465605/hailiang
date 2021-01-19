@@ -74,6 +74,9 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 	private static final String data_zdsupplier = "zdsupplier" ;
 	private static final String data_comment = "comment" ;
 	private static final String data_requestorg = "requestorg" ;
+	private static final String data_procureself = "procureself";
+	private static final String data_dxqk = "dxqk";
+	
 	private static final String data_entry = "entry" ;
 	private static final String data_entry_seq = "seq" ;
 	private static final String data_entry_material = "material" ;
@@ -103,7 +106,7 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 	private static final String ACCEPTOR = "hl01_acceptor" ;
 	private static final String ZDSUPPLIER = "hl01_zdsupplier";
 	private static final String STORAGE = "hl01_storage";
-	
+	private static final String PROCURESELF = "hl01_procureself";
 	
 	private static final String COMMENT = "hl01_comment";
 	private static final String COSTDEPT = "hl01_costdept";
@@ -149,6 +152,9 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			String comment = jsonData.getString(data_comment);//采购事由和要求
 			String storage = jsonData.getString(data_storage);//是否入库0否、1是
 			String requestorg = jsonData.getString(data_requestorg);
+			String procureself = jsonData.getString(data_procureself);
+			String dxqk = jsonData.getString(data_dxqk);
+			
 			DynamicObject purapplybill = BusinessDataServiceHelper.newDynamicObject(PmpurapplyBillConstant.pm_purapplybill_ext);
 			//相当于where条件
 //			QFilter orgfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, NUMBER_DEFAULT);
@@ -199,10 +205,18 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 			purapplybill.set(TITLE, title);
 			purapplybill.set(PROCESSNUMBER, processNumber);
 			purapplybill.set(PROCESSID, processId);
+			//验收人
 			QFilter userfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, acceptor);
 			DynamicObject adminUser = BusinessDataServiceHelper.loadSingle(CommonConstant.BOS_USER, CommonConstant.ID, new QFilter[] {userfilter});
 			purapplybill.set(ACCEPTOR, adminUser);
+			//定向来源
 			purapplybill.set(ZDSUPPLIER, "0".equals(zdsupplier)?false:true);
+			//定向情况
+			QFilter dxqkfilter = new QFilter(PmpurapplyBillConstant.number, QCP.equals, dxqk);
+			DynamicObject adminDxqk = BusinessDataServiceHelper.loadSingle("bos_assistantdata_detail", CommonConstant.ID, new QFilter[] {dxqkfilter});
+			purapplybill.set("hl01_dxqk",adminDxqk);
+			
+			purapplybill.set(PROCURESELF,  "0".equals(procureself)?false:true);
 			purapplybill.set(STORAGE,  "0".equals(storage)?false:true);
 			purapplybill.set(COMMENT, comment);
 			//获取物料明细
@@ -240,9 +254,11 @@ public class ImportPurapplybillWebApi implements IBillWebApiPlugin {
 					billentry.set("applyqty", applyqty);
 					billentry.set("qty", applyqty);
 					billentry.set("hl01_budgetprice", budgetprice);
+					billentry.set("hl01_yanshouren", adminUser);
 					billentry.set("hl01_amount", budgetamount);
 					billentry.set("entryreqorg", adminrequestorg);//需求组织
-					//billentry.set("entryreqdept", adminDept);
+					billentry.set("entryreqdept", adminDept);
+					billentry.set("hl01_fycdbm", adminorg_dept);
 					billentry.set("entryrecorg", adminorg);//收货组织
 					billentry.set("reqdate", HLCommonUtils.parseDateTime(hopedate, HLCommonUtils.DATEPATTERN));
 					billentry.set("entrycomment", entryremark);
